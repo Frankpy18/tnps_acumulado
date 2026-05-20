@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mi TNPS · Asesor</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+/* =========================================
+  Pega aquí todo el CSS de tu archivo original
+  (desde :root { ... } hasta el final de los @media queries)
+  No lo incluyo completo para ahorrar espacio, 
+  pero mantén tu diseño intacto.
+========================================= 
+*/
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-ico">📈</div>
+    <div>
+      <div class="brand-name">MI TNPS</div>
+      <div class="brand-sub">Portal del Asesor</div>
+    </div>
+  </div>
+  <div class="date-tag">Actualización en tiempo real</div>
+</header>
+
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-avatar">👤</div>
+    <div class="login-title">Consulta tu TNPS</div>
+    <div class="login-sub" id="loginStatus">Cargando base de datos... ⏳</div>
+    <div class="input-wrap">
+      <span class="input-icon">🆔</span>
+      <input class="user-input" id="userInput" placeholder="Ej: E3054969" maxlength="10" disabled
+        onkeydown="if(event.key==='Enter')buscar()">
+    </div>
+    <button class="btn-ver" id="btnBuscar" onclick="buscar()" disabled>Ver mi TNPS →</button>
+    <div class="error-msg" id="errMsg">❌ Usuario no encontrado. Verifica tu código E.</div>
+  </div>
+</div>
+
+<div id="dashScreen">
+  <div class="dash-topbar">
+    <div class="agent-info">
+      <div class="agent-avatar">👤</div>
+      <div>
+        <div class="agent-name" id="dashName">—</div>
+        <div class="agent-meta">Supervisor: <span id="dashSup">—</span> &nbsp;·&nbsp; <span class="agent-id" id="dashId">—</span></div>
+      </div>
+    </div>
+    <button class="btn-salir" onclick="salir()">← Salir</button>
+  </div>
+  </div>
+
+<script>
+// Aquí guardaremos la data una vez descargada
+let AGENTS = {}; 
+let trendChartInstance = null;
+
+// TUS ENLACES DE GOOGLE SHEETS
+const URL_DATA_ACUMULADA = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTCKkPiQkp8rJvOrz95FauJokkkbul0MDod3yNN2PGcYRHwscVIPnoQ8mjIlSsroMqO220K_BOlH4FB/pub?output=csv";
+const URL_DISTRIBUCION = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTbpxF-5MB_g43RYGdZJIqoFMqgeFmuzNDF3IBWZz6-Pq6y6hqooqU9KtKhnJP_ovIvviXe50XZJzws/pub?output=csv";
+
+// Función para descargar y parsear un CSV
+function fetchCSV(url) {
+  return new Promise((resolve, reject) => {
+    Papa.parse(url, {
+      download: true,
+      header: true, // Asume que la primera fila tiene los nombres de las columnas
+      skipEmptyLines: true,
+      complete: function(results) { resolve(results.data); },
+      error: function(err) { reject(err); }
+    });
+  });
+}
+
+// Función principal que se ejecuta al abrir la página
+async function inicializarDatos() {
+  try {
+    // Descargamos ambos archivos al mismo tiempo
+    const [dataAcumulada, distribucion] = await Promise.all([
+      fetchCSV(URL_DATA_ACUMULADA),
+      fetchCSV(URL_DISTRIBUCION)
+    ]);
+
+    // ==============================================================
+    // ⚠️ PASO CRÍTICO: CONVERTIR LOS CSV AL FORMATO DE TU JSON
+    // ==============================================================
+    /* Como no conozco los títulos exactos de las columnas de tus CSV, 
+      estoy usando nombres de ejemplo (ej. row.codigo_asesor). 
+      Deberás cambiar estos nombres para que coincidan exactamente 
+      con los encabezados de tus archivos de Google Sheets.
+    */
+
+    // 1. Armamos el diccionario base con la Distribución
+    distribucion.forEach(row => {
+      const codigo = row["ID_ASESOR"]; // <- Cambia "ID_ASESOR" por tu columna real
+      AGENTS[codigo] = {
+        usuario: codigo,
+        nombre: row["NOMBRE_ASESOR"] || "Desconocido", // <- Cambia "NOMBRE_ASESOR"
+        supervisor: row["SUPERVISOR"] || "Sin asignar", // <- Cambia "SUPERVISOR"
+        mes: { tnps: 0, promotores: 0, pasivos: 0, detractores: 0, total: 0 },
+        dia: { tnps: 0, promotores: 0, pasivos: 0, detractores: 0, total: 0 },
+        last3: [],
+        trend: []
+      };
+    });
+
+    // 2. Llenamos las métricas con la data acumulada de TNPS
+    dataAcumulada.forEach(row => {
+      const codigo = row["ID_ASESOR"]; // <- Cambia por tu columna real
+      if (AGENTS[codigo]) {
+        // Aquí deberás hacer las sumatorias o reemplazar los datos
+        // según cómo venga estructurado tu archivo de métricas.
+        // Ejemplo simplificado:
+        AGENTS[codigo].mes.tnps = parseFloat(row["TNPS_MES"]) || 0;
+        AGENTS[codigo].dia.tnps = parseFloat(row["TNPS_DIA"]) || null;
+        // ... Asignar promotores, pasivos, etc ...
+      }
+    });
+
+    // Listo, habilitamos los inputs
+    document.getElementById('loginStatus').innerHTML = "✅ Base de datos actualizada y lista.";
+    document.getElementById('userInput').disabled = false;
+    document.getElementById('btnBuscar').disabled = false;
+    document.getElementById('userInput').focus();
+
+  } catch (error) {
+    console.error("Error cargando los datos:", error);
+    document.getElementById('loginStatus').innerHTML = "❌ Error de conexión. Intenta recargar la página.";
+    document.getElementById('loginStatus').style.color = "var(--red)";
+  }
+}
+
+// Iniciamos la descarga apenas cargue el código
+inicializarDatos();
+
+// ==============================================================
+//  MANTÉN EL RESTO DE TUS FUNCIONES INTACTAS
+// ==============================================================
+
+function tnpsColor(v) {
+  if (v === null || v === undefined) return 'var(--muted2)';
+  if (v >= 70) return 'var(--green)';
+  if (v >= 40) return 'var(--accent)';
+  return 'var(--red)';
+}
+
+function buscar() {
+  const raw = document.getElementById('userInput').value.trim().toUpperCase();
+  const errEl = document.getElementById('errMsg');
+  errEl.style.display = 'none';
+
+  if (!raw) return;
+  const agent = AGENTS[raw];
+  if (!agent) {
+    errEl.style.display = 'block';
+    return;
+  }
+  renderDash(agent); // Tu función original renderDash() va aquí
+}
+
+function salir() {
+  // Tu función original salir() va aquí
+}
+
+// ... Pega el resto de tu código JS original aquí (renderDash, chart, etc) ...
+
+</script>
+</body>
+</html>

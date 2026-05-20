@@ -242,7 +242,7 @@ header{
       <div class="tc-label"><span class="tc-ico">☀️</span>TNPS del Día</div>
       <div class="tc-main">
         <div class="tc-num" id="tnpsDay" style="--cv:var(--accent)">—</div>
-        <div class="tc-unit">pts</div>
+        <div class="tc-unit">%</div>
       </div>
       <div class="tc-pills">
         <span class="pill p">⭐ <span id="dayP">—</span> prom.</span>
@@ -261,7 +261,7 @@ header{
       <div class="tc-label"><span class="tc-ico">📅</span>TNPS Acumulado · Mes</div>
       <div class="tc-main">
         <div class="tc-num" id="tnpsMes" style="--cv:var(--green)">—</div>
-        <div class="tc-unit">pts</div>
+        <div class="tc-unit">%</div>
       </div>
       <div class="tc-pills">
         <span class="pill p">⭐ <span id="mesP">—</span> prom.</span>
@@ -346,7 +346,7 @@ function clasificarNPS(score) {
 // Calcula TNPS = ((Promotores - Detractores) / Total) * 100
 function calcTNPS(prom, det, total) {
   if (total === 0) return null;
-  return Math.round(((prom - det) / total) * 100);
+  return ((prom - det) / total) * 100;
 }
 
 // Obtiene el YYYYMM de un serial Excel
@@ -447,6 +447,7 @@ async function inicializarDatos() {
       if (!a) return;
 
       const fechasSorted = Object.keys(enc[codigo]).map(Number).sort((x, y) => x - y);
+      let dailyTNPSValues = [];
 
       fechasSorted.forEach(fechaInt => {
         const recs = enc[codigo][fechaInt];
@@ -468,15 +469,28 @@ async function inicializarDatos() {
           }
         });
 
+        const totalDia = p + pas + d;
+        const tnpsDia = calcTNPS(p, d, totalDia);
+        if (tnpsDia !== null) {
+          dailyTNPSValues.push(tnpsDia);
+        }
+
         // Punto de tendencia diario
         a.trend.push({
           fecha: excelToShortDate(fechaInt),
-          tnps:  calcTNPS(p, d, p + pas + d)
+          tnps:  tnpsDia
         });
       });
 
-      // TNPS calculado
-      a.mes.tnps = calcTNPS(a.mes.prom, a.mes.det, a.mes.total);
+      // El TNPS del mes es el promedio de los TNPS diarios
+      if (dailyTNPSValues.length > 0) {
+        const sum = dailyTNPSValues.reduce((sum, val) => sum + val, 0);
+        a.mes.tnps = sum / dailyTNPSValues.length;
+      } else {
+        a.mes.tnps = null;
+      }
+
+      // TNPS del día
       a.dia.tnps = calcTNPS(a.dia.prom, a.dia.det, a.dia.total);
 
       // Últimas 3 encuestas del día más reciente
@@ -529,7 +543,7 @@ function renderDash(a) {
 
   // ── Métricas del Día ───────────────────────────────────────────────────
   const dia = a.dia;
-  document.getElementById('tnpsDay').textContent = dia.tnps !== null ? dia.tnps : '—';
+  document.getElementById('tnpsDay').textContent = dia.tnps !== null ? dia.tnps.toFixed(2) : '—';
   document.getElementById('tnpsDay').style.setProperty('--cv', tnpsColor(dia.tnps));
   document.getElementById('dayP').textContent   = dia.prom;
   document.getElementById('dayPas').textContent = dia.pas;
@@ -546,7 +560,7 @@ function renderDash(a) {
 
   // ── Métricas del Mes ───────────────────────────────────────────────────
   const mes = a.mes;
-  document.getElementById('tnpsMes').textContent = mes.tnps !== null ? mes.tnps : '—';
+  document.getElementById('tnpsMes').textContent = mes.tnps !== null ? mes.tnps.toFixed(2) : '—';
   document.getElementById('tnpsMes').style.setProperty('--cv', tnpsColor(mes.tnps));
   document.getElementById('mesP').textContent   = mes.prom;
   document.getElementById('mesPas').textContent = mes.pas;

@@ -8,13 +8,193 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
-/* =========================================
-  Pega aquí todo el CSS de tu archivo original
-  (desde :root { ... } hasta el final de los @media queries)
-  No lo incluyo completo para ahorrar espacio, 
-  pero mantén tu diseño intacto.
-========================================= 
-*/
+:root{
+  --bg:#080b12;--bg2:#0c0f18;--card:#111520;--card2:#171c2b;
+  --border:#1b2133;--border2:#232b40;
+  --accent:#4f8cff;--accent2:#2563eb;
+  --green:#00e676;--green2:rgba(0,230,118,0.12);
+  --yellow:#ffd740;--yellow2:rgba(255,215,64,0.12);
+  --red:#ff4f6d;--red2:rgba(255,79,109,0.12);
+  --text:#e4eaf5;--muted:#4e5d78;--muted2:#8494ae;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;display:flex;flex-direction:column;}
+
+body::before{
+  content:'';position:fixed;inset:0;
+  background:radial-gradient(ellipse 80% 50% at 50% -10%,rgba(79,140,255,0.08),transparent);
+  pointer-events:none;z-index:0;
+}
+
+header{
+  position:relative;z-index:10;
+  padding:16px 28px;
+  display:flex;align-items:center;justify-content:space-between;
+  border-bottom:1px solid var(--border);
+  background:rgba(8,11,18,0.8);backdrop-filter:blur(12px);
+}
+.brand{display:flex;align-items:center;gap:10px;}
+.brand-ico{
+  width:34px;height:34px;border-radius:9px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  display:flex;align-items:center;justify-content:center;font-size:16px;
+}
+.brand-name{font-family:'Rajdhani',sans-serif;font-size:17px;font-weight:700;letter-spacing:.5px;}
+.brand-sub{font-size:10px;color:var(--muted2);letter-spacing:2px;text-transform:uppercase;}
+.date-tag{
+  background:var(--card2);border:1px solid var(--border2);
+  color:var(--green);padding:4px 12px;border-radius:20px;font-size:11px;
+}
+
+#loginScreen{
+  flex:1;display:flex;align-items:center;justify-content:center;
+  position:relative;z-index:5;padding:32px 16px;
+}
+.login-card{
+  width:100%;max-width:420px;
+  background:var(--card);border:1px solid var(--border);border-radius:20px;
+  padding:40px 36px;text-align:center;
+  animation:fadeUp .5s ease;
+}
+.login-avatar{
+  width:72px;height:72px;border-radius:50%;
+  background:linear-gradient(135deg,rgba(79,140,255,.18),rgba(79,140,255,.06));
+  border:2px solid rgba(79,140,255,.25);
+  margin:0 auto 20px;display:flex;align-items:center;justify-content:center;
+  font-size:32px;
+}
+.login-title{font-family:'Rajdhani',sans-serif;font-size:26px;font-weight:700;margin-bottom:6px;}
+.login-sub{color:var(--muted2);font-size:14px;margin-bottom:28px;line-height:1.5;}
+.input-wrap{position:relative;margin-bottom:16px;}
+.user-input{
+  width:100%;background:var(--bg2);border:1.5px solid var(--border2);
+  border-radius:12px;padding:14px 18px;padding-left:44px;
+  color:var(--text);font-size:16px;font-family:'JetBrains Mono',monospace;
+  font-weight:600;letter-spacing:2px;text-transform:uppercase;
+  outline:none;transition:border-color .2s,box-shadow .2s;
+}
+.user-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(79,140,255,.12);}
+.user-input:disabled{opacity:0.5;cursor:not-allowed;}
+.user-input::placeholder{color:var(--muted);letter-spacing:1px;font-weight:400;font-family:'DM Sans',sans-serif;text-transform:none;}
+.input-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:17px;}
+.btn-ver{
+  width:100%;padding:14px;border-radius:12px;border:none;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  color:#fff;font-size:15px;font-weight:600;font-family:'DM Sans',sans-serif;
+  cursor:pointer;transition:opacity .2s,transform .15s;letter-spacing:.3px;
+}
+.btn-ver:hover:not(:disabled){opacity:.9;transform:translateY(-1px);}
+.btn-ver:disabled{background:var(--border2);color:var(--muted2);cursor:not-allowed;transform:none;}
+.error-msg{
+  background:rgba(255,79,109,.1);border:1px solid rgba(255,79,109,.25);
+  color:var(--red);border-radius:8px;padding:10px 14px;
+  font-size:13px;margin-top:12px;display:none;
+}
+
+#dashScreen{display:none;position:relative;z-index:5;padding:24px 28px 40px;}
+
+.dash-topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:24px;flex-wrap:wrap;gap:12px;
+}
+.agent-info{display:flex;align-items:center;gap:14px;}
+.agent-avatar{
+  width:46px;height:46px;border-radius:50%;
+  background:linear-gradient(135deg,rgba(79,140,255,.2),rgba(79,140,255,.06));
+  border:1.5px solid rgba(79,140,255,.3);
+  display:flex;align-items:center;justify-content:center;font-size:20px;
+}
+.agent-name{font-family:'Rajdhani',sans-serif;font-size:20px;font-weight:700;}
+.agent-meta{font-size:12px;color:var(--muted2);margin-top:2px;}
+.agent-id{
+  font-family:'JetBrains Mono',monospace;font-size:11px;
+  background:rgba(79,140,255,.1);border:1px solid rgba(79,140,255,.2);
+  color:var(--accent);padding:2px 8px;border-radius:4px;
+}
+.btn-salir{
+  background:var(--card2);border:1px solid var(--border2);
+  color:var(--muted2);padding:8px 16px;border-radius:8px;
+  font-size:13px;cursor:pointer;transition:all .2s;font-family:'DM Sans',sans-serif;
+}
+.btn-salir:hover{border-color:var(--red);color:var(--red);}
+
+.compare-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;}
+.tnps-card{
+  background:var(--card);border:1px solid var(--border);border-radius:16px;
+  padding:22px 24px;position:relative;overflow:hidden;
+}
+.tnps-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--c);}
+.tnps-card.day-card{--c:linear-gradient(90deg,var(--accent),#a78bfa);}
+.tnps-card.mes-card{--c:linear-gradient(90deg,var(--green),#00b4d8);}
+.tc-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px;display:flex;align-items:center;gap:6px;}
+.tc-ico{font-size:14px;}
+.tc-main{display:flex;align-items:flex-end;gap:12px;margin-bottom:14px;}
+.tc-num{font-family:'Rajdhani',sans-serif;font-size:52px;font-weight:700;line-height:1;color:var(--cv,var(--accent));}
+.tc-unit{font-size:16px;color:var(--muted2);margin-bottom:8px;}
+.tc-pills{display:flex;gap:8px;flex-wrap:wrap;}
+.pill{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:500;}
+.pill.p{background:var(--green2);color:var(--green);border:1px solid rgba(0,230,118,.25);}
+.pill.pas{background:var(--yellow2);color:var(--yellow);border:1px solid rgba(255,215,64,.25);}
+.pill.d{background:var(--red2);color:var(--red);border:1px solid rgba(255,79,109,.25);}
+.pill.t{background:rgba(255,255,255,.05);color:var(--muted2);border:1px solid var(--border2);}
+.progress-bar{height:5px;background:var(--bg2);border-radius:3px;margin-top:14px;overflow:hidden;display:flex;gap:2px;}
+.pb-p{background:var(--green);border-radius:3px;height:100%;transition: width 0.5s ease;}
+.pb-pas{background:var(--yellow);border-radius:3px;height:100%;transition: width 0.5s ease;}
+.pb-d{background:var(--red);border-radius:3px;height:100%;transition: width 0.5s ease;}
+
+.section-title{
+  font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:600;
+  color:var(--muted2);text-transform:uppercase;letter-spacing:1.5px;
+  margin-bottom:14px;display:flex;align-items:center;gap:8px;
+}
+.st-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);flex-shrink:0;}
+
+.bottom-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px;}
+.trend-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:22px 24px;}
+.chart-wrap{height:220px;position:relative;}
+.trend-note{
+  margin-top:10px;padding:8px 12px;
+  background:rgba(79,140,255,.06);border:1px solid rgba(79,140,255,.14);
+  border-radius:8px;font-size:11px;color:var(--muted2);line-height:1.5;
+}
+
+.surveys-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:22px 24px;}
+.survey-item{
+  padding:14px 16px;border-radius:12px;background:var(--card2);
+  border:1px solid var(--border2);margin-bottom:10px;
+  display:flex;align-items:center;gap:14px;
+  transition:border-color .2s;
+}
+.survey-item:hover{border-color:var(--border2);}
+.survey-score-badge{
+  width:44px;height:44px;border-radius:10px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;
+}
+.badge-promotor{background:var(--green2);color:var(--green);border:1px solid rgba(0,230,118,.3);}
+.badge-pasivo{background:var(--yellow2);color:var(--yellow);border:1px solid rgba(255,215,64,.3);}
+.badge-detractor{background:var(--red2);color:var(--red);border:1px solid rgba(255,79,109,.3);}
+.survey-info{flex:1;min-width:0;}
+.survey-tipo{font-size:13px;font-weight:600;margin-bottom:3px;}
+.survey-tipo.promotor{color:var(--green);}
+.survey-tipo.pasivo{color:var(--yellow);}
+.survey-tipo.detractor{color:var(--red);}
+.survey-meta{display:flex;gap:10px;flex-wrap:wrap;}
+.survey-detail{font-size:11px;color:var(--muted2);display:flex;align-items:center;gap:4px;}
+.no-survey{
+  padding:24px;text-align:center;color:var(--muted);font-size:13px;
+  border:1px dashed var(--border2);border-radius:12px;
+}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:translateY(0);}}
+.login-card{animation:fadeUp .5s ease;}
+.compare-row, .bottom-grid{animation:fadeUp .4s ease .05s both;}
+
+@media(max-width:680px){
+  .compare-row,.bottom-grid{grid-template-columns:1fr;}
+  #dashScreen{padding:16px 14px 32px;}
+  .tc-num{font-size:40px;}
+}
 </style>
 </head>
 <body>
@@ -27,14 +207,14 @@
       <div class="brand-sub">Portal del Asesor</div>
     </div>
   </div>
-  <div class="date-tag">Actualización en tiempo real</div>
+  <div class="date-tag">🔴 Datos en vivo</div>
 </header>
 
 <div id="loginScreen">
   <div class="login-card">
     <div class="login-avatar">👤</div>
     <div class="login-title">Consulta tu TNPS</div>
-    <div class="login-sub" id="loginStatus">Cargando base de datos... ⏳</div>
+    <div class="login-sub" id="loginStatus">Conectando a base de datos... ⏳</div>
     <div class="input-wrap">
       <span class="input-icon">🆔</span>
       <input class="user-input" id="userInput" placeholder="Ej: E3054969" maxlength="10" disabled
@@ -56,97 +236,165 @@
     </div>
     <button class="btn-salir" onclick="salir()">← Salir</button>
   </div>
+
+  <div class="compare-row">
+    <div class="tnps-card day-card">
+      <div class="tc-label"><span class="tc-ico">☀️</span>TNPS del Día</div>
+      <div class="tc-main">
+        <div class="tc-num" id="tnpsDay" style="--cv:var(--accent)">—</div>
+        <div class="tc-unit">pts</div>
+      </div>
+      <div class="tc-pills">
+        <span class="pill p">⭐ <span id="dayP">—</span> prom.</span>
+        <span class="pill pas">→ <span id="dayPas">—</span> pas.</span>
+        <span class="pill d">⚠ <span id="dayD">—</span> det.</span>
+        <span class="pill t">📋 <span id="dayN">—</span> enc.</span>
+      </div>
+      <div class="progress-bar">
+        <div class="pb-p" id="pbDayP" style="width:0%"></div>
+        <div class="pb-pas" id="pbDayPas" style="width:0%"></div>
+        <div class="pb-d" id="pbDayD" style="width:0%"></div>
+      </div>
+    </div>
+
+    <div class="tnps-card mes-card">
+      <div class="tc-label"><span class="tc-ico">📅</span>TNPS Acumulado · Mes</div>
+      <div class="tc-main">
+        <div class="tc-num" id="tnpsMes" style="--cv:var(--green)">—</div>
+        <div class="tc-unit">pts</div>
+      </div>
+      <div class="tc-pills">
+        <span class="pill p">⭐ <span id="mesP">—</span> prom.</span>
+        <span class="pill pas">→ <span id="mesPas">—</span> pas.</span>
+        <span class="pill d">⚠ <span id="mesD">—</span> det.</span>
+        <span class="pill t">📋 <span id="mesN">—</span> enc.</span>
+      </div>
+      <div class="progress-bar">
+        <div class="pb-p" id="pbMesP" style="width:0%"></div>
+        <div class="pb-pas" id="pbMesPas" style="width:0%"></div>
+        <div class="pb-d" id="pbMesD" style="width:0%"></div>
+      </div>
+    </div>
   </div>
 
+  <div class="bottom-grid">
+    <div class="trend-card">
+      <div class="section-title"><span class="st-dot"></span>Evolución TNPS</div>
+      <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
+    </div>
+    <div class="surveys-card">
+      <div class="section-title"><span class="st-dot" style="background:var(--yellow)"></span>Últimas encuestas registradas</div>
+      <div id="surveysContainer"></div>
+    </div>
+  </div>
+</div>
+
 <script>
-// Aquí guardaremos la data una vez descargada
-let AGENTS = {}; 
+// =========================================================================
+// ⚙️ CONFIGURACIÓN DE COLUMNAS (ETL)
+// Cambia los valores entre comillas por el nombre exacto de las cabeceras de tus CSV
+// =========================================================================
+
+const URL_DATA_ACUMULADA = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTCKkPiQkp8rJvOrz95FauJokkkbul0MDod3yNN2PGcYRHwscVIPnoQ8mjIlSsroMqO220K_BOlH4FB/pub?output=csv";
+const URL_DISTRIBUCION   = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTbpxF-5MB_g43RYGdZJIqoFMqgeFmuzNDF3IBWZz6-Pq6y6hqooqU9KtKhnJP_ovIvviXe50XZJzws/pub?output=csv";
+
+// Columnas del archivo distriadmin.csv
+const COL_DIST_ID     = "CODIGO_USUARIO"; // Reemplaza con tu cabecera real
+const COL_DIST_NOMBRE = "NOMBRE_ASESOR"; 
+const COL_DIST_SUPER  = "SUPERVISOR";
+
+// Columnas del archivo Data Acumulada.csv (Métricas del Mes)
+const COL_ID_ACUM     = "CODIGO_USUARIO"; // La llave para unir ambas tablas
+const COL_MES_TNPS    = "TNPS_MES";
+const COL_MES_PROM    = "MES_PROMOTORES";
+const COL_MES_PAS     = "MES_PASIVOS";
+const COL_MES_DET     = "MES_DETRACTORES";
+const COL_MES_TOT     = "MES_TOTAL";
+
+// Columnas del archivo Data Acumulada.csv (Métricas del Día)
+const COL_DIA_TNPS    = "TNPS_DIA";
+const COL_DIA_PROM    = "DIA_PROMOTORES";
+const COL_DIA_PAS     = "DIA_PASIVOS";
+const COL_DIA_DET     = "DIA_DETRACTORES";
+const COL_DIA_TOT     = "DIA_TOTAL";
+
+// =========================================================================
+
+let AGENTS = {};
 let trendChartInstance = null;
 
-// TUS ENLACES DE GOOGLE SHEETS
-const URL_DATA_ACUMULADA = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTCKkPiQkp8rJvOrz95FauJokkkbul0MDod3yNN2PGcYRHwscVIPnoQ8mjIlSsroMqO220K_BOlH4FB/pub?output=csv";
-const URL_DISTRIBUCION = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTbpxF-5MB_g43RYGdZJIqoFMqgeFmuzNDF3IBWZz6-Pq6y6hqooqU9KtKhnJP_ovIvviXe50XZJzws/pub?output=csv";
-
-// Función para descargar y parsear un CSV
 function fetchCSV(url) {
   return new Promise((resolve, reject) => {
     Papa.parse(url, {
-      download: true,
-      header: true, // Asume que la primera fila tiene los nombres de las columnas
-      skipEmptyLines: true,
+      download: true, header: true, skipEmptyLines: true,
       complete: function(results) { resolve(results.data); },
       error: function(err) { reject(err); }
     });
   });
 }
 
-// Función principal que se ejecuta al abrir la página
 async function inicializarDatos() {
   try {
-    // Descargamos ambos archivos al mismo tiempo
     const [dataAcumulada, distribucion] = await Promise.all([
       fetchCSV(URL_DATA_ACUMULADA),
       fetchCSV(URL_DISTRIBUCION)
     ]);
 
-    // ==============================================================
-    // ⚠️ PASO CRÍTICO: CONVERTIR LOS CSV AL FORMATO DE TU JSON
-    // ==============================================================
-    /* Como no conozco los títulos exactos de las columnas de tus CSV, 
-      estoy usando nombres de ejemplo (ej. row.codigo_asesor). 
-      Deberás cambiar estos nombres para que coincidan exactamente 
-      con los encabezados de tus archivos de Google Sheets.
-    */
-
-    // 1. Armamos el diccionario base con la Distribución
+    // 1. Cargar Base de Asesores
     distribucion.forEach(row => {
-      const codigo = row["ID_ASESOR"]; // <- Cambia "ID_ASESOR" por tu columna real
-      AGENTS[codigo] = {
-        usuario: codigo,
-        nombre: row["NOMBRE_ASESOR"] || "Desconocido", // <- Cambia "NOMBRE_ASESOR"
-        supervisor: row["SUPERVISOR"] || "Sin asignar", // <- Cambia "SUPERVISOR"
-        mes: { tnps: 0, promotores: 0, pasivos: 0, detractores: 0, total: 0 },
-        dia: { tnps: 0, promotores: 0, pasivos: 0, detractores: 0, total: 0 },
-        last3: [],
-        trend: []
-      };
-    });
-
-    // 2. Llenamos las métricas con la data acumulada de TNPS
-    dataAcumulada.forEach(row => {
-      const codigo = row["ID_ASESOR"]; // <- Cambia por tu columna real
-      if (AGENTS[codigo]) {
-        // Aquí deberás hacer las sumatorias o reemplazar los datos
-        // según cómo venga estructurado tu archivo de métricas.
-        // Ejemplo simplificado:
-        AGENTS[codigo].mes.tnps = parseFloat(row["TNPS_MES"]) || 0;
-        AGENTS[codigo].dia.tnps = parseFloat(row["TNPS_DIA"]) || null;
-        // ... Asignar promotores, pasivos, etc ...
+      const codigo = row[COL_DIST_ID]?.trim().toUpperCase();
+      if(codigo) {
+        AGENTS[codigo] = {
+          usuario: codigo,
+          nombre: row[COL_DIST_NOMBRE] || "—",
+          supervisor: row[COL_DIST_SUPER] || "Sin asignar",
+          mes: { tnps: null, promotores: 0, pasivos: 0, detractores: 0, total: 0 },
+          dia: { tnps: null, promotores: 0, pasivos: 0, detractores: 0, total: 0 },
+          last3: [],
+          trend: []
+        };
       }
     });
 
-    // Listo, habilitamos los inputs
-    document.getElementById('loginStatus').innerHTML = "✅ Base de datos actualizada y lista.";
+    // 2. Hacer Merge con la Data Acumulada
+    dataAcumulada.forEach(row => {
+      const codigo = row[COL_ID_ACUM]?.trim().toUpperCase();
+      if (AGENTS[codigo]) {
+        let a = AGENTS[codigo];
+        
+        a.mes.tnps = row[COL_MES_TNPS] !== "" && row[COL_MES_TNPS] !== undefined ? parseFloat(row[COL_MES_TNPS]) : null;
+        a.mes.promotores = parseInt(row[COL_MES_PROM]) || 0;
+        a.mes.pasivos = parseInt(row[COL_MES_PAS]) || 0;
+        a.mes.detractores = parseInt(row[COL_MES_DET]) || 0;
+        a.mes.total = parseInt(row[COL_MES_TOT]) || 0;
+
+        a.dia.tnps = row[COL_DIA_TNPS] !== "" && row[COL_DIA_TNPS] !== undefined ? parseFloat(row[COL_DIA_TNPS]) : null;
+        a.dia.promotores = parseInt(row[COL_DIA_PROM]) || 0;
+        a.dia.pasivos = parseInt(row[COL_DIA_PAS]) || 0;
+        a.dia.detractores = parseInt(row[COL_DIA_DET]) || 0;
+        a.dia.total = parseInt(row[COL_DIA_TOT]) || 0;
+
+        // Omitimos last3 y trend temporalmente si no los tienes aún mapeados en columnas planas.
+      }
+    });
+
+    document.getElementById('loginStatus').innerHTML = "✅ Base de datos actualizada en tiempo real.";
+    document.getElementById('loginStatus').style.color = "var(--green)";
     document.getElementById('userInput').disabled = false;
     document.getElementById('btnBuscar').disabled = false;
     document.getElementById('userInput').focus();
 
   } catch (error) {
-    console.error("Error cargando los datos:", error);
-    document.getElementById('loginStatus').innerHTML = "❌ Error de conexión. Intenta recargar la página.";
+    console.error(error);
+    document.getElementById('loginStatus').innerHTML = "❌ Error al conectar con Google Sheets.";
     document.getElementById('loginStatus').style.color = "var(--red)";
   }
 }
 
-// Iniciamos la descarga apenas cargue el código
 inicializarDatos();
 
-// ==============================================================
-//  MANTÉN EL RESTO DE TUS FUNCIONES INTACTAS
-// ==============================================================
-
 function tnpsColor(v) {
-  if (v === null || v === undefined) return 'var(--muted2)';
+  if (v === null || v === undefined || isNaN(v)) return 'var(--muted2)';
   if (v >= 70) return 'var(--green)';
   if (v >= 40) return 'var(--accent)';
   return 'var(--red)';
@@ -163,15 +411,116 @@ function buscar() {
     errEl.style.display = 'block';
     return;
   }
-  renderDash(agent); // Tu función original renderDash() va aquí
+  renderDash(agent);
+}
+
+function renderDash(a) {
+  document.getElementById('dashName').textContent = a.nombre;
+  document.getElementById('dashSup').textContent = a.supervisor;
+  document.getElementById('dashId').textContent = a.usuario;
+
+  // Lógica Día
+  const dia = a.dia;
+  document.getElementById('tnpsDay').textContent = dia.tnps !== null ? dia.tnps : '—';
+  document.getElementById('tnpsDay').style.setProperty('--cv', tnpsColor(dia.tnps));
+  document.getElementById('dayP').textContent = dia.promotores;
+  document.getElementById('dayPas').textContent = dia.pasivos;
+  document.getElementById('dayD').textContent = dia.detractores;
+  document.getElementById('dayN').textContent = dia.total;
+  
+  if (dia.total > 0) {
+    document.getElementById('pbDayP').style.width = (dia.promotores/dia.total*100)+'%';
+    document.getElementById('pbDayPas').style.width = (dia.pasivos/dia.total*100)+'%';
+    document.getElementById('pbDayD').style.width = (dia.detractores/dia.total*100)+'%';
+  } else {
+    document.getElementById('pbDayP').style.width = '0%';
+    document.getElementById('pbDayPas').style.width = '0%';
+    document.getElementById('pbDayD').style.width = '0%';
+  }
+
+  // Lógica Mes
+  const mes = a.mes;
+  document.getElementById('tnpsMes').textContent = mes.tnps !== null ? mes.tnps : '—';
+  document.getElementById('tnpsMes').style.setProperty('--cv', tnpsColor(mes.tnps));
+  document.getElementById('mesP').textContent = mes.promotores;
+  document.getElementById('mesPas').textContent = mes.pasivos;
+  document.getElementById('mesD').textContent = mes.detractores;
+  document.getElementById('mesN').textContent = mes.total;
+
+  if (mes.total > 0) {
+    document.getElementById('pbMesP').style.width = (mes.promotores/mes.total*100)+'%';
+    document.getElementById('pbMesPas').style.width = (mes.pasivos/mes.total*100)+'%';
+    document.getElementById('pbMesD').style.width = (mes.detractores/mes.total*100)+'%';
+  } else {
+    document.getElementById('pbMesP').style.width = '0%';
+    document.getElementById('pbMesPas').style.width = '0%';
+    document.getElementById('pbMesD').style.width = '0%';
+  }
+
+  // Chart (Manejo seguro si está vacío)
+  if (trendChartInstance) { trendChartInstance.destroy(); trendChartInstance = null; }
+  if (a.trend && a.trend.length > 0) {
+    const ctx = document.getElementById('trendChart').getContext('2d');
+    const labels = a.trend.map(t => t.fecha);
+    const vals = a.trend.map(t => t.tnps);
+    const ptColors = vals.map(v => tnpsColor(v).replace('var(--','').replace(')','')); 
+
+    trendChartInstance = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          data: vals,
+          borderColor: '#4f8cff',
+          backgroundColor: 'rgba(79,140,255,0.08)',
+          borderWidth: 2.5,
+          pointRadius: 6,
+          tension: 0.4,
+          fill: true,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#4e5d78' } },
+          y: { min: -100, max: 100, grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#4e5d78' } }
+        }
+      }
+    });
+  }
+
+  // Encuestas recientes
+  const cont = document.getElementById('surveysContainer');
+  if (!a.last3 || a.last3.length === 0) {
+    cont.innerHTML = '<div class="no-survey">Sin encuestas recientes registradas en la base de datos.</div>';
+  } else {
+    cont.innerHTML = a.last3.map((s, i) => {
+      const badgeClass = s.tipo.toLowerCase() === 'promotor' ? 'badge-promotor' : s.tipo.toLowerCase() === 'pasivo' ? 'badge-pasivo' : 'badge-detractor';
+      return `
+        <div class="survey-item" style="animation:fadeUp .3s ease ${i*0.07}s both;">
+          <div class="survey-score-badge ${badgeClass}">${s.score_nps}</div>
+          <div class="survey-info">
+            <div class="survey-tipo ${s.tipo.toLowerCase()}">${s.tipo}</div>
+            <div class="survey-meta">
+              <span class="survey-detail">🕐 ${s.hora}</span>
+              <span class="survey-detail">📡 ${s.campana}</span>
+              <span class="survey-detail">⏱ ${s.duracion}</span>
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('dashScreen').style.display = 'block';
 }
 
 function salir() {
-  // Tu función original salir() va aquí
+  document.getElementById('dashScreen').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('userInput').value = '';
 }
-
-// ... Pega el resto de tu código JS original aquí (renderDash, chart, etc) ...
-
 </script>
 </body>
 </html>

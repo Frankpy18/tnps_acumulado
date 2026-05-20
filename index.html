@@ -291,20 +291,20 @@ header{
 
 <script>
 // =========================================================================
-// ⚙️ CONFIGURACIÓN DE COLUMNAS (ETL)
-// Cambia los valores entre comillas por el nombre exacto de las cabeceras de tus CSV
+// ⚙️ CONFIGURACIÓN DE COLUMNAS 
+// Solo edita los valores en VERDE (entre comillas). ¡NO agregues la palabra 'row'!
 // =========================================================================
 
 const URL_DATA_ACUMULADA = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTCKkPiQkp8rJvOrz95FauJokkkbul0MDod3yNN2PGcYRHwscVIPnoQ8mjIlSsroMqO220K_BOlH4FB/pub?output=csv";
 const URL_DISTRIBUCION   = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTbpxF-5MB_g43RYGdZJIqoFMqgeFmuzNDF3IBWZz6-Pq6y6hqooqU9KtKhnJP_ovIvviXe50XZJzws/pub?output=csv";
 
 // Columnas del archivo distriadmin.csv
-const COL_DIST_ID     = "CODIGO_USUARIO"; // Reemplaza con tu cabecera real
+const COL_DIST_ID     = "CODIGO_USUARIO"; // <-- Cambia esto por el título exacto de tu Excel
 const COL_DIST_NOMBRE = "NOMBRE_ASESOR"; 
 const COL_DIST_SUPER  = "SUPERVISOR";
 
 // Columnas del archivo Data Acumulada.csv (Métricas del Mes)
-const COL_ID_ACUM     = "CODIGO_USUARIO"; // La llave para unir ambas tablas
+const COL_ID_ACUM     = "CODIGO_USUARIO"; // <-- Cambia esto por el título exacto de tu Excel
 const COL_MES_TNPS    = "TNPS_MES";
 const COL_MES_PROM    = "MES_PROMOTORES";
 const COL_MES_PAS     = "MES_PASIVOS";
@@ -373,8 +373,6 @@ async function inicializarDatos() {
         a.dia.pasivos = parseInt(row[COL_DIA_PAS]) || 0;
         a.dia.detractores = parseInt(row[COL_DIA_DET]) || 0;
         a.dia.total = parseInt(row[COL_DIA_TOT]) || 0;
-
-        // Omitimos last3 y trend temporalmente si no los tienes aún mapeados en columnas planas.
       }
     });
 
@@ -457,7 +455,7 @@ function renderDash(a) {
     document.getElementById('pbMesD').style.width = '0%';
   }
 
-  // Chart (Manejo seguro si está vacío)
+  // Chart
   if (trendChartInstance) { trendChartInstance.destroy(); trendChartInstance = null; }
   if (a.trend && a.trend.length > 0) {
     const ctx = document.getElementById('trendChart').getContext('2d');

@@ -307,9 +307,8 @@ const COL_DIST_SUPER  = "SUPERVISOR DE OPERACIONES";
 // Data_acumulada.xlsx
 const COL_AGENTE      = "USUARIO AGENTE";
 const COL_NPS         = "RESPUESTA PREGUNTA 1";
-const COL_FECHA       = "FECHA";              // Serial numérico de Excel
-const COL_HORA        = "HORA DE INICIO";     // Fracción de día
-const COL_CAMPANA     = "CAMPANA";
+const COL_FECHA       = "FECHA";              // Fecha DD/MM/YYYY o serial
+const COL_HORA_FIN    = "HORA FIN DE LLAMADA"; // Hora fin de llamada
 const COL_DURACION    = "DURACION";
 
 // =========================================================================
@@ -317,23 +316,47 @@ const COL_DURACION    = "DURACION";
 let AGENTS = {};
 let trendChartInstance = null;
 
-// Convierte serial de Excel a Date JS
-function excelToDate(serial) {
-  return new Date(Math.round((serial - 25569) * 86400000));
+// Convierte y formatea una cadena de hora "HH:MM:SS" a "HH:MM"
+function formatTimeString(str) {
+  if (!str) return '--:--';
+  const parts = str.trim().split(':');
+  if (parts.length >= 2) {
+    const hh = String(parts[0]).padStart(2, '0');
+    const mm = String(parts[1]).padStart(2, '0');
+    return `${hh}:${mm}`;
+  }
+  return str;
 }
 
-// Convierte serial de Excel a "DD/MM"
-function excelToShortDate(serial) {
-  const d = excelToDate(serial);
-  const dia = String(d.getUTCDate()).padStart(2, '0');
-  const mes = String(d.getUTCMonth() + 1).padStart(2, '0');
-  return `${dia}/${mes}`;
+// Helper: convierte un valor de fecha (string DD/MM/YYYY o serial) a objeto Date y YYYYMMDD
+function parseFechaRow(val) {
+  if (!val) return null;
+  const s = String(val).trim();
+  if (s.includes('/')) {
+    const parts = s.split('/');
+    if (parts.length === 3) {
+      const d = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1;
+      const y = parseInt(parts[2], 10);
+      const date = new Date(Date.UTC(y, m, d));
+      const yymmdd = y * 10000 + (m + 1) * 100 + d;
+      return { date, yymmdd, yyyymm: y * 100 + (m + 1) };
+    }
+  }
+  const num = parseFloat(s);
+  if (!isNaN(num)) {
+    const date = new Date(Math.round((num - 25569) * 86400000));
+    const yymmdd = date.getUTCFullYear() * 10000 + (date.getUTCMonth() + 1) * 100 + date.getUTCDate();
+    return { date, yymmdd, yyyymm: date.getUTCFullYear() * 100 + (date.getUTCMonth() + 1) };
+  }
+  return null;
 }
 
-// Convierte fracción de día a "HH:MM"
-function fracToTime(frac) {
-  const totalMin = Math.round(frac * 1440);
-  return `${String(Math.floor(totalMin / 60)).padStart(2, '0')}:${String(totalMin % 60).padStart(2, '0')}`;
+// Convierte un YYYYMMDD a formato corto "DD/MM"
+function yyyymmddToShortDate(ymd) {
+  const d = ymd % 100;
+  const m = Math.floor((ymd % 10000) / 100);
+  return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}`;
 }
 
 // Clasifica puntuación NPS
@@ -392,17 +415,18 @@ async function inicializarDatos() {
     });
 
     // ── 2. Detectar la fecha más reciente en los datos ─────────────────────
-    let maxSerial = 0;
+    let maxFechaInt = 0;
     dataAcumulada.forEach(row => {
-      const f = parseFloat(row[COL_FECHA]);
-      if (!isNaN(f) && f > maxSerial) maxSerial = f;
+      const p = parseFechaRow(row[COL_FECHA]);
+      if (p && p.yymmdd > maxFechaInt) {
+        maxFechaInt = p.yymmdd;
+      }
     });
 
-    const maxFechaInt    = Math.floor(maxSerial);   // serial entero del día más reciente
-    const maxFechaYYYYMM = excelToYYYYMM(maxSerial); // mes del día más reciente
+    const maxFechaYYYYMM = Math.floor(maxFechaInt / 100); // ej: 202605
 
     // ── 3. Agrupar encuestas por agente y fecha ────────────────────────────
-    // encuestasPorAgente[codigo][serialEntero] = [ records... ]
+    // encuestasPorAgente[codigo][fechaInt] = [ records... ]
     const enc = {};
 
     dataAcumulada.forEach(row => {
@@ -415,24 +439,23 @@ async function inicializarDatos() {
       const score = parseFloat(scoreRaw);
       if (isNaN(score) || score < 1 || score > 10) return;
 
-      const fechaSerial = parseFloat(row[COL_FECHA]);
-      if (isNaN(fechaSerial)) return;
+      const pDate = parseFechaRow(row[COL_FECHA]);
+      if (!pDate) return;
 
       // Solo datos del mismo mes que el más reciente
-      if (excelToYYYYMM(fechaSerial) !== maxFechaYYYYMM) return;
+      if (pDate.yyyymm !== maxFechaYYYYMM) return;
 
-      const fechaInt  = Math.floor(fechaSerial);
-      const horaFrac  = parseFloat(row[COL_HORA]);
+      const fechaInt  = pDate.yymmdd;
       const scoreInt  = Math.round(score);
       const durSeg    = parseFloat(row[COL_DURACION]);
+      const horaFinRaw = row[COL_HORA_FIN]?.trim() || '';
 
       const record = {
         score:   scoreInt,
         tipo:    clasificarNPS(scoreInt),
         esHoy:   fechaInt === maxFechaInt,
-        shortDate: excelToShortDate(fechaSerial),
-        hora:    !isNaN(horaFrac) ? fracToTime(horaFrac) : '--:--',
-        campana: row[COL_CAMPANA]?.trim() || '—',
+        shortDate: yyyymmddToShortDate(fechaInt),
+        hora:    formatTimeString(horaFinRaw),
         duracion: !isNaN(durSeg) ? `${Math.round(durSeg)}s` : '—'
       };
 
@@ -477,7 +500,7 @@ async function inicializarDatos() {
 
         // Punto de tendencia diario
         a.trend.push({
-          fecha: excelToShortDate(fechaInt),
+          fecha: yyyymmddToShortDate(fechaInt),
           tnps:  tnpsDia
         });
       });
@@ -621,7 +644,6 @@ function renderDash(a) {
             <div class="survey-tipo ${s.tipo.toLowerCase()}">${s.tipo}</div>
             <div class="survey-meta">
               <span class="survey-detail">🕐 ${s.hora}</span>
-              <span class="survey-detail">📡 ${s.campana}</span>
               <span class="survey-detail">⏱ ${s.duracion}</span>
             </div>
           </div>

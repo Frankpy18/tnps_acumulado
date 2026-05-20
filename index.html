@@ -297,72 +297,74 @@ const URL_DATA_ACUMULADA = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTCK
 const URL_DISTRIBUCION   = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTbpxF-5MB_g43RYGdZJIqoFMqgeFmuzNDF3IBWZz6-Pq6y6hqooqU9KtKhnJP_ovIvviXe50XZJzws/pub?output=csv";
 
 // =========================================================================
-// Columnas exactas (headers se limpian con .trim() automáticamente)
+// Columnas exactas (los headers se limpian con .trim() automáticamente)
 // =========================================================================
 // distriadmin.xlsx
-const COL_DIST_ID     = "USUARIO";
+const COL_DIST_ID     = "USUARIO";            // tiene \n al final en Excel, trim lo corrige
 const COL_DIST_NOMBRE = "NOMBRES Y APELLIDOS";
 const COL_DIST_SUPER  = "SUPERVISOR DE OPERACIONES";
 
 // Data_acumulada.xlsx
-const COL_AGENTE   = "USUARIO AGENTE";
-const COL_NPS      = "RESPUESTA PREGUNTA 1";
-const COL_FECHA    = "FECHA";
-const COL_HORA     = "HORA DE INICIO";
-const COL_CAMPANA  = "CAMPANA";
-const COL_DURACION = "DURACION";
+const COL_AGENTE      = "USUARIO AGENTE";
+const COL_NPS         = "RESPUESTA PREGUNTA 1";
+const COL_FECHA       = "FECHA";              // Serial numérico de Excel
+const COL_HORA        = "HORA DE INICIO";     // Fracción de día
+const COL_CAMPANA     = "CAMPANA";
+const COL_DURACION    = "DURACION";
 
 // =========================================================================
 
 let AGENTS = {};
 let trendChartInstance = null;
 
-// Serial de Excel → Date JS (UTC)
+// Convierte serial de Excel a Date JS
 function excelToDate(serial) {
   return new Date(Math.round((serial - 25569) * 86400000));
 }
 
-// Serial de Excel → "DD/MM"
+// Convierte serial de Excel a "DD/MM"
 function excelToShortDate(serial) {
   const d = excelToDate(serial);
-  return String(d.getUTCDate()).padStart(2,'0') + '/' + String(d.getUTCMonth()+1).padStart(2,'0');
+  const dia = String(d.getUTCDate()).padStart(2, '0');
+  const mes = String(d.getUTCMonth() + 1).padStart(2, '0');
+  return `${dia}/${mes}`;
 }
 
-// Fracción de día → "HH:MM"
+// Convierte fracción de día a "HH:MM"
 function fracToTime(frac) {
   const totalMin = Math.round(frac * 1440);
-  return String(Math.floor(totalMin/60)).padStart(2,'0') + ':' + String(totalMin%60).padStart(2,'0');
+  return `${String(Math.floor(totalMin / 60)).padStart(2, '0')}:${String(totalMin % 60).padStart(2, '0')}`;
 }
 
-// Clasificación NPS
+// Clasifica puntuación NPS
 function clasificarNPS(score) {
   if (score >= 9) return 'Promotor';
   if (score >= 7) return 'Pasivo';
   return 'Detractor';
 }
 
-// TNPS = ((Prom - Det) / Total) * 100
+// Calcula TNPS = ((Promotores - Detractores) / Total) * 100
 function calcTNPS(prom, det, total) {
   if (total === 0) return null;
   return Math.round(((prom - det) / total) * 100);
 }
 
-// YYYYMM de un serial Excel
+// Obtiene el YYYYMM de un serial Excel
 function excelToYYYYMM(serial) {
   const d = excelToDate(serial);
   return d.getUTCFullYear() * 100 + (d.getUTCMonth() + 1);
 }
 
-// Carga CSV con PapaParse, trimming de headers
+// Carga CSV con PapaParse, limpiando espacios/saltos de los headers
 function fetchCSV(url) {
   return new Promise((resolve, reject) => {
     Papa.parse(url, {
       download: true,
       header: true,
       skipEmptyLines: true,
-      transformHeader: function(h) { return h.trim(); },
-      complete: function(r) { resolve(r.data); },
-      error: function(err) { reject(err); }
+      transformHeader: h => h.trim(),   // <-- corrige "USUARIO \n" y similares
+      complete: r => resolve(r.data),
+      error: err => reject(err)
     });
   });
 }
@@ -374,59 +376,64 @@ async function inicializarDatos() {
       fetchCSV(URL_DISTRIBUCION)
     ]);
 
-    // 1. Construir directorio de asesores desde distriadmin
-    distribucion.forEach(function(row) {
-      const codigo = row[COL_DIST_ID] ? row[COL_DIST_ID].trim().toUpperCase() : '';
+    // ── 1. Construir directorio de asesores desde distriadmin ──────────────
+    distribucion.forEach(row => {
+      const codigo = row[COL_DIST_ID]?.trim().toUpperCase();
       if (!codigo) return;
       AGENTS[codigo] = {
         usuario:    codigo,
-        nombre:     row[COL_DIST_NOMBRE] ? row[COL_DIST_NOMBRE].trim() : '—',
-        supervisor: row[COL_DIST_SUPER]  ? row[COL_DIST_SUPER].trim()  : 'Sin asignar',
-        mes:  { prom: 0, pas: 0, det: 0, total: 0, tnps: null },
-        dia:  { prom: 0, pas: 0, det: 0, total: 0, tnps: null },
+        nombre:     row[COL_DIST_NOMBRE]?.trim() || '—',
+        supervisor: row[COL_DIST_SUPER]?.trim()  || 'Sin asignar',
+        mes: { prom: 0, pas: 0, det: 0, total: 0, tnps: null },
+        dia: { prom: 0, pas: 0, det: 0, total: 0, tnps: null },
         last3: [],
         trend: []
       };
     });
 
-    // 2. Fecha más reciente en los datos
-    var maxSerial = 0;
-    dataAcumulada.forEach(function(row) {
-      var f = parseFloat(row[COL_FECHA]);
+    // ── 2. Detectar la fecha más reciente en los datos ─────────────────────
+    let maxSerial = 0;
+    dataAcumulada.forEach(row => {
+      const f = parseFloat(row[COL_FECHA]);
       if (!isNaN(f) && f > maxSerial) maxSerial = f;
     });
 
-    var maxFechaInt    = Math.floor(maxSerial);
-    var maxFechaYYYYMM = excelToYYYYMM(maxSerial);
+    const maxFechaInt    = Math.floor(maxSerial);   // serial entero del día más reciente
+    const maxFechaYYYYMM = excelToYYYYMM(maxSerial); // mes del día más reciente
 
-    // 3. Agrupar encuestas válidas por agente y fecha
-    var enc = {};
+    // ── 3. Agrupar encuestas por agente y fecha ────────────────────────────
+    // encuestasPorAgente[codigo][serialEntero] = [ records... ]
+    const enc = {};
 
-    dataAcumulada.forEach(function(row) {
-      var codigo = row[COL_AGENTE] ? row[COL_AGENTE].trim().toUpperCase() : '';
+    dataAcumulada.forEach(row => {
+      const codigo = row[COL_AGENTE]?.trim().toUpperCase();
       if (!codigo || codigo === '-' || !AGENTS[codigo]) return;
 
-      var scoreRaw = row[COL_NPS];
-      if (!scoreRaw || scoreRaw.trim() === '-' || scoreRaw.trim() === '') return;
-      var score = parseFloat(scoreRaw);
+      // Solo filas con puntuación NPS válida
+      const scoreRaw = row[COL_NPS];
+      if (!scoreRaw || scoreRaw === '-') return;
+      const score = parseFloat(scoreRaw);
       if (isNaN(score) || score < 1 || score > 10) return;
 
-      var fechaSerial = parseFloat(row[COL_FECHA]);
+      const fechaSerial = parseFloat(row[COL_FECHA]);
       if (isNaN(fechaSerial)) return;
+
+      // Solo datos del mismo mes que el más reciente
       if (excelToYYYYMM(fechaSerial) !== maxFechaYYYYMM) return;
 
-      var fechaInt  = Math.floor(fechaSerial);
-      var horaFrac  = parseFloat(row[COL_HORA]);
-      var scoreInt  = Math.round(score);
-      var durSeg    = parseFloat(row[COL_DURACION]);
+      const fechaInt  = Math.floor(fechaSerial);
+      const horaFrac  = parseFloat(row[COL_HORA]);
+      const scoreInt  = Math.round(score);
+      const durSeg    = parseFloat(row[COL_DURACION]);
 
-      var record = {
-        score:    scoreInt,
-        tipo:     clasificarNPS(scoreInt),
-        esHoy:    fechaInt === maxFechaInt,
-        hora:     !isNaN(horaFrac) ? fracToTime(horaFrac) : '--:--',
-        campana:  row[COL_CAMPANA] ? row[COL_CAMPANA].trim() : '—',
-        duracion: !isNaN(durSeg) ? (Math.round(durSeg) + 's') : '—'
+      const record = {
+        score:   scoreInt,
+        tipo:    clasificarNPS(scoreInt),
+        esHoy:   fechaInt === maxFechaInt,
+        shortDate: excelToShortDate(fechaSerial),
+        hora:    !isNaN(horaFrac) ? fracToTime(horaFrac) : '--:--',
+        campana: row[COL_CAMPANA]?.trim() || '—',
+        duracion: !isNaN(durSeg) ? `${Math.round(durSeg)}s` : '—'
       };
 
       if (!enc[codigo]) enc[codigo] = {};
@@ -434,38 +441,46 @@ async function inicializarDatos() {
       enc[codigo][fechaInt].push(record);
     });
 
-    // 4. Calcular métricas por agente
-    Object.keys(enc).forEach(function(codigo) {
-      var a = AGENTS[codigo];
+    // ── 4. Calcular métricas y tender por agente ───────────────────────────
+    Object.keys(enc).forEach(codigo => {
+      const a = AGENTS[codigo];
       if (!a) return;
 
-      var fechasSorted = Object.keys(enc[codigo]).map(Number).sort(function(x,y){ return x-y; });
+      const fechasSorted = Object.keys(enc[codigo]).map(Number).sort((x, y) => x - y);
 
-      fechasSorted.forEach(function(fechaInt) {
-        var recs = enc[codigo][fechaInt];
-        var p=0, pas=0, d=0;
+      fechasSorted.forEach(fechaInt => {
+        const recs = enc[codigo][fechaInt];
+        let p = 0, pas = 0, d = 0;
 
-        recs.forEach(function(r) {
+        recs.forEach(r => {
+          // Acumular mes
           a.mes.total++;
-          if (r.tipo === 'Promotor')     { a.mes.prom++; p++; }
-          else if (r.tipo === 'Pasivo')  { a.mes.pas++;  pas++; }
-          else                           { a.mes.det++;  d++; }
+          if (r.tipo === 'Promotor') { a.mes.prom++; p++; }
+          else if (r.tipo === 'Pasivo') { a.mes.pas++; pas++; }
+          else { a.mes.det++; d++; }
 
+          // Acumular día (fecha más reciente)
           if (r.esHoy) {
             a.dia.total++;
-            if (r.tipo === 'Promotor')    a.dia.prom++;
+            if (r.tipo === 'Promotor') a.dia.prom++;
             else if (r.tipo === 'Pasivo') a.dia.pas++;
-            else                          a.dia.det++;
+            else a.dia.det++;
           }
         });
 
-        a.trend.push({ fecha: excelToShortDate(fechaInt), tnps: calcTNPS(p, d, p+pas+d) });
+        // Punto de tendencia diario
+        a.trend.push({
+          fecha: excelToShortDate(fechaInt),
+          tnps:  calcTNPS(p, d, p + pas + d)
+        });
       });
 
+      // TNPS calculado
       a.mes.tnps = calcTNPS(a.mes.prom, a.mes.det, a.mes.total);
       a.dia.tnps = calcTNPS(a.dia.prom, a.dia.det, a.dia.total);
 
-      var recsHoy = enc[codigo][maxFechaInt] || [];
+      // Últimas 3 encuestas del día más reciente
+      const recsHoy = enc[codigo][maxFechaInt] || [];
       a.last3 = recsHoy.slice(-3).reverse();
     });
 
@@ -494,12 +509,16 @@ function tnpsColor(v) {
 }
 
 function buscar() {
-  var raw   = document.getElementById('userInput').value.trim().toUpperCase();
-  var errEl = document.getElementById('errMsg');
+  const raw   = document.getElementById('userInput').value.trim().toUpperCase();
+  const errEl = document.getElementById('errMsg');
   errEl.style.display = 'none';
   if (!raw) return;
-  var agent = AGENTS[raw];
-  if (!agent) { errEl.style.display = 'block'; return; }
+
+  const agent = AGENTS[raw];
+  if (!agent) {
+    errEl.style.display = 'block';
+    return;
+  }
   renderDash(agent);
 }
 
@@ -508,8 +527,8 @@ function renderDash(a) {
   document.getElementById('dashSup').textContent  = a.supervisor;
   document.getElementById('dashId').textContent   = a.usuario;
 
-  // Día
-  var dia = a.dia;
+  // ── Métricas del Día ───────────────────────────────────────────────────
+  const dia = a.dia;
   document.getElementById('tnpsDay').textContent = dia.tnps !== null ? dia.tnps : '—';
   document.getElementById('tnpsDay').style.setProperty('--cv', tnpsColor(dia.tnps));
   document.getElementById('dayP').textContent   = dia.prom;
@@ -518,15 +537,15 @@ function renderDash(a) {
   document.getElementById('dayN').textContent   = dia.total;
 
   if (dia.total > 0) {
-    document.getElementById('pbDayP').style.width   = (dia.prom/dia.total*100) + '%';
-    document.getElementById('pbDayPas').style.width = (dia.pas/dia.total*100)  + '%';
-    document.getElementById('pbDayD').style.width   = (dia.det/dia.total*100)  + '%';
+    document.getElementById('pbDayP').style.width   = (dia.prom / dia.total * 100) + '%';
+    document.getElementById('pbDayPas').style.width = (dia.pas  / dia.total * 100) + '%';
+    document.getElementById('pbDayD').style.width   = (dia.det  / dia.total * 100) + '%';
   } else {
-    ['pbDayP','pbDayPas','pbDayD'].forEach(function(id){ document.getElementById(id).style.width='0%'; });
+    ['pbDayP','pbDayPas','pbDayD'].forEach(id => document.getElementById(id).style.width = '0%');
   }
 
-  // Mes
-  var mes = a.mes;
+  // ── Métricas del Mes ───────────────────────────────────────────────────
+  const mes = a.mes;
   document.getElementById('tnpsMes').textContent = mes.tnps !== null ? mes.tnps : '—';
   document.getElementById('tnpsMes').style.setProperty('--cv', tnpsColor(mes.tnps));
   document.getElementById('mesP').textContent   = mes.prom;
@@ -535,23 +554,23 @@ function renderDash(a) {
   document.getElementById('mesN').textContent   = mes.total;
 
   if (mes.total > 0) {
-    document.getElementById('pbMesP').style.width   = (mes.prom/mes.total*100) + '%';
-    document.getElementById('pbMesPas').style.width = (mes.pas/mes.total*100)  + '%';
-    document.getElementById('pbMesD').style.width   = (mes.det/mes.total*100)  + '%';
+    document.getElementById('pbMesP').style.width   = (mes.prom / mes.total * 100) + '%';
+    document.getElementById('pbMesPas').style.width = (mes.pas  / mes.total * 100) + '%';
+    document.getElementById('pbMesD').style.width   = (mes.det  / mes.total * 100) + '%';
   } else {
-    ['pbMesP','pbMesPas','pbMesD'].forEach(function(id){ document.getElementById(id).style.width='0%'; });
+    ['pbMesP','pbMesPas','pbMesD'].forEach(id => document.getElementById(id).style.width = '0%');
   }
 
-  // Gráfica de tendencia
+  // ── Gráfica de Tendencia ───────────────────────────────────────────────
   if (trendChartInstance) { trendChartInstance.destroy(); trendChartInstance = null; }
   if (a.trend && a.trend.length > 0) {
-    var ctx = document.getElementById('trendChart').getContext('2d');
+    const ctx = document.getElementById('trendChart').getContext('2d');
     trendChartInstance = new Chart(ctx, {
       type: 'line',
       data: {
-        labels: a.trend.map(function(t){ return t.fecha; }),
+        labels: a.trend.map(t => t.fecha),
         datasets: [{
-          data: a.trend.map(function(t){ return t.tnps; }),
+          data: a.trend.map(t => t.tnps),
           borderColor: '#4f8cff',
           backgroundColor: 'rgba(79,140,255,0.08)',
           borderWidth: 2.5,
@@ -561,7 +580,8 @@ function renderDash(a) {
         }]
       },
       options: {
-        responsive: true, maintainAspectRatio: false,
+        responsive: true,
+        maintainAspectRatio: false,
         plugins: { legend: { display: false } },
         scales: {
           x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#4e5d78' } },
@@ -571,22 +591,27 @@ function renderDash(a) {
     });
   }
 
-  // Últimas encuestas
-  var cont = document.getElementById('surveysContainer');
+  // ── Últimas Encuestas ──────────────────────────────────────────────────
+  const cont = document.getElementById('surveysContainer');
   if (!a.last3 || a.last3.length === 0) {
-    cont.innerHTML = '<div class="no-survey">Sin encuestas en la fecha más reciente.</div>';
+    cont.innerHTML = '<div class="no-survey">Sin encuestas registradas en la fecha más reciente.</div>';
   } else {
-    cont.innerHTML = a.last3.map(function(s, i) {
-      var badgeClass = s.tipo === 'Promotor' ? 'badge-promotor' : s.tipo === 'Pasivo' ? 'badge-pasivo' : 'badge-detractor';
-      return '<div class="survey-item" style="animation:fadeUp .3s ease ' + (i*0.07) + 's both;">'
-        + '<div class="survey-score-badge ' + badgeClass + '">' + s.score + '</div>'
-        + '<div class="survey-info">'
-        + '<div class="survey-tipo ' + s.tipo.toLowerCase() + '">' + s.tipo + '</div>'
-        + '<div class="survey-meta">'
-        + '<span class="survey-detail">\uD83D\uDD50 ' + s.hora + '</span>'
-        + '<span class="survey-detail">\uD83D\uDCE1 ' + s.campana + '</span>'
-        + '<span class="survey-detail">\u23F1 ' + s.duracion + '</span>'
-        + '</div></div></div>';
+    cont.innerHTML = a.last3.map((s, i) => {
+      const badgeClass = s.tipo === 'Promotor' ? 'badge-promotor'
+                       : s.tipo === 'Pasivo'    ? 'badge-pasivo'
+                       : 'badge-detractor';
+      return `
+        <div class="survey-item" style="animation:fadeUp .3s ease ${i * 0.07}s both;">
+          <div class="survey-score-badge ${badgeClass}">${s.score}</div>
+          <div class="survey-info">
+            <div class="survey-tipo ${s.tipo.toLowerCase()}">${s.tipo}</div>
+            <div class="survey-meta">
+              <span class="survey-detail">🕐 ${s.hora}</span>
+              <span class="survey-detail">📡 ${s.campana}</span>
+              <span class="survey-detail">⏱ ${s.duracion}</span>
+            </div>
+          </div>
+        </div>`;
     }).join('');
   }
 

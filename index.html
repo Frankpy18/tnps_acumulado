@@ -249,6 +249,7 @@ header{
         <span class="pill pas">→ <span id="dayPas">—</span> pas.</span>
         <span class="pill d">⚠ <span id="dayD">—</span> det.</span>
         <span class="pill t">📋 <span id="dayN">—</span> enc.</span>
+        <span class="pill t" style="background:rgba(79,140,255,0.08);color:var(--accent);border:1px solid rgba(79,140,255,0.25)">📞 <span id="dayAtendidas">—</span> atend.</span>
       </div>
       <div class="progress-bar">
         <div class="pb-p" id="pbDayP" style="width:0%"></div>
@@ -268,6 +269,7 @@ header{
         <span class="pill pas">→ <span id="mesPas">—</span> pas.</span>
         <span class="pill d">⚠ <span id="mesD">—</span> det.</span>
         <span class="pill t">📋 <span id="mesN">—</span> enc.</span>
+        <span class="pill t" style="background:rgba(0,230,118,0.08);color:var(--green);border:1px solid rgba(0,230,118,0.25)">📞 <span id="mesAtendidas">—</span> atend.</span>
       </div>
       <div class="progress-bar">
         <div class="pb-p" id="pbMesP" style="width:0%"></div>
@@ -310,6 +312,7 @@ const COL_NPS         = "RESPUESTA PREGUNTA 1";
 const COL_FECHA       = "FECHA";              // Fecha DD/MM/YYYY o serial
 const COL_HORA_FIN    = "HORA FIN DE LLAMADA"; // Hora fin de llamada
 const COL_DURACION    = "DURACION";
+const COL_ID_LLAMADA  = "ID DE LLAMADA";
 
 // =========================================================================
 
@@ -407,8 +410,8 @@ async function inicializarDatos() {
         usuario:    codigo,
         nombre:     row[COL_DIST_NOMBRE]?.trim() || '—',
         supervisor: row[COL_DIST_SUPER]?.trim()  || 'Sin asignar',
-        mes: { prom: 0, pas: 0, det: 0, total: 0, tnps: null },
-        dia: { prom: 0, pas: 0, det: 0, total: 0, tnps: null },
+        mes: { prom: 0, pas: 0, det: 0, total: 0, tnps: null, atendidas: 0 },
+        dia: { prom: 0, pas: 0, det: 0, total: 0, tnps: null, atendidas: 0 },
         last3: [],
         trend: []
       };
@@ -433,27 +436,39 @@ async function inicializarDatos() {
       const codigo = row[COL_AGENTE]?.trim().toUpperCase();
       if (!codigo || codigo === '-' || !AGENTS[codigo]) return;
 
-      // Solo filas con puntuación NPS válida
-      const scoreRaw = row[COL_NPS];
-      if (!scoreRaw || scoreRaw === '-') return;
-      const score = parseFloat(scoreRaw);
-      if (isNaN(score) || score < 1 || score > 10) return;
-
       const pDate = parseFechaRow(row[COL_FECHA]);
       if (!pDate) return;
 
       // Solo datos del mismo mes que el más reciente
       if (pDate.yyyymm !== maxFechaYYYYMM) return;
 
-      const fechaInt  = pDate.yymmdd;
-      const scoreInt  = Math.round(score);
-      const durSeg    = parseFloat(row[COL_DURACION]);
+      const a = AGENTS[codigo];
+      const fechaInt = pDate.yymmdd;
+      const esHoy = fechaInt === maxFechaInt;
+      const durSeg = parseFloat(row[COL_DURACION]);
+
+      // ── A. Calcular Llamadas Atendidas (Duración > 5s y ID de llamada válido) ──
+      const idLlamada = row[COL_ID_LLAMADA]?.trim();
+      if (idLlamada && idLlamada !== '-' && !isNaN(durSeg) && durSeg > 5) {
+        a.mes.atendidas++;
+        if (esHoy) {
+          a.dia.atendidas++;
+        }
+      }
+
+      // ── B. Calcular Encuestas (Solo con NPS válido) ───────────────────────────
+      const scoreRaw = row[COL_NPS];
+      if (!scoreRaw || scoreRaw === '-') return;
+      const score = parseFloat(scoreRaw);
+      if (isNaN(score) || score < 1 || score > 10) return;
+
+      const scoreInt = Math.round(score);
       const horaFinRaw = row[COL_HORA_FIN]?.trim() || '';
 
       const record = {
         score:   scoreInt,
         tipo:    clasificarNPS(scoreInt),
-        esHoy:   fechaInt === maxFechaInt,
+        esHoy:   esHoy,
         shortDate: yyyymmddToShortDate(fechaInt),
         hora:    formatTimeString(horaFinRaw),
         duracion: !isNaN(durSeg) ? `${Math.round(durSeg)}s` : '—'
@@ -572,6 +587,7 @@ function renderDash(a) {
   document.getElementById('dayPas').textContent = dia.pas;
   document.getElementById('dayD').textContent   = dia.det;
   document.getElementById('dayN').textContent   = dia.total;
+  document.getElementById('dayAtendidas').textContent = dia.atendidas;
 
   if (dia.total > 0) {
     document.getElementById('pbDayP').style.width   = (dia.prom / dia.total * 100) + '%';
@@ -589,6 +605,7 @@ function renderDash(a) {
   document.getElementById('mesPas').textContent = mes.pas;
   document.getElementById('mesD').textContent   = mes.det;
   document.getElementById('mesN').textContent   = mes.total;
+  document.getElementById('mesAtendidas').textContent = mes.atendidas;
 
   if (mes.total > 0) {
     document.getElementById('pbMesP').style.width   = (mes.prom / mes.total * 100) + '%';

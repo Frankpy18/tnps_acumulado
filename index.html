@@ -460,7 +460,7 @@ async function inicializarDatos() {
       const scoreRaw = row[COL_NPS];
       if (!scoreRaw || scoreRaw === '-') return;
       const score = parseFloat(scoreRaw);
-      if (isNaN(score) || score < 1 || score > 10) return;
+      if (isNaN(score) || score < 0 || score > 10) return;
 
       const scoreInt = Math.round(score);
       const horaFinRaw = row[COL_HORA_FIN]?.trim() || '';
